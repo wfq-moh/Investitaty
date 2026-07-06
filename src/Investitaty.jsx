@@ -92,6 +92,7 @@ const TRANSLATIONS = {
     loading: "LOADING YOUR PORTFOLIO...",
     synced: "SYNCED",
     syncing: "SYNCING...",
+    sync: "Sync",
     signOut: "Sign Out",
     dashboard: "Dashboard",
     portfolios: "Portfolios",
@@ -382,6 +383,7 @@ const TRANSLATIONS = {
     loading: "جارٍ تحميل محفظتك...",
     synced: "تمت المزامنة",
     syncing: "جارٍ المزامنة...",
+    sync: "المزامنة",
     signOut: "تسجيل الخروج",
     dashboard: "لوحة التحكم",
     portfolios: "المحافظ",
@@ -2511,6 +2513,13 @@ function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, isMobile, mobileO
           </>
         ) : (
           <>
+            <button
+              data-icon-tooltip={syncing ? t.syncing : t.sync}
+              onClick={manualSync}
+              style={{ display:"flex",alignItems:"center",justifyContent:"center",width:"38px",height:"38px",borderRadius:"8px",border:"none",background:syncing?"rgba(245,158,11,0.12)":"transparent",color:syncing?"#f59e0b":T.emerald,cursor:"pointer",transition:"all 0.15s" }}
+            >
+              <RefreshCw size={17} style={{ animation:syncing?"spin 1s linear infinite":"none" }} />
+            </button>
             <button data-icon-tooltip={t.language} onClick={()=>setLang(lang === "en" ? "ar" : "en")} style={{ display:"flex",alignItems:"center",justifyContent:"center",width:"38px",height:"38px",borderRadius:"8px",border:"none",background:"transparent",color:T.textSidebarMuted,cursor:"pointer" }}><Globe size={17}/></button>
             <button data-icon-tooltip={`${t.country}: ${selectedCountry?.name || "—"}`} style={{ display:"flex",alignItems:"center",justifyContent:"center",width:"38px",height:"38px",borderRadius:"8px",border:"none",background:"transparent",color:T.textSidebarMuted,cursor:"default" }}><Landmark size={17}/></button>
             <div data-icon-tooltip={user?.name || user?.email || "User"} style={{ width:"32px",height:"32px",borderRadius:"50%",overflow:"hidden",background:"rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:"0.75rem" }}>

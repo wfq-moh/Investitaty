@@ -92,6 +92,7 @@ const TRANSLATIONS = {
     loading: "LOADING YOUR PORTFOLIO...",
     synced: "SYNCED",
     syncing: "SYNCING...",
+    sync: "Sync",
     signOut: "Sign Out",
     dashboard: "Dashboard",
     portfolios: "Portfolios",
@@ -382,6 +383,7 @@ const TRANSLATIONS = {
     loading: "جارٍ تحميل محفظتك...",
     synced: "تمت المزامنة",
     syncing: "جارٍ المزامنة...",
+    sync: "المزامنة",
     signOut: "تسجيل الخروج",
     dashboard: "لوحة التحكم",
     portfolios: "المحافظ",
@@ -2511,6 +2513,13 @@ function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen, isMobile, mobileO
           </>
         ) : (
           <>
+            <button
+              data-icon-tooltip={syncing ? t.syncing : t.sync}
+              onClick={manualSync}
+              style={{ display:"flex",alignItems:"center",justifyContent:"center",width:"38px",height:"38px",borderRadius:"8px",border:"none",background:syncing?"rgba(245,158,11,0.12)":"transparent",color:syncing?"#f59e0b":T.emerald,cursor:"pointer",transition:"all 0.15s" }}
+            >
+              <RefreshCw size={17} style={{ animation:syncing?"spin 1s linear infinite":"none" }} />
+            </button>
             <button data-icon-tooltip={t.language} onClick={()=>setLang(lang === "en" ? "ar" : "en")} style={{ display:"flex",alignItems:"center",justifyContent:"center",width:"38px",height:"38px",borderRadius:"8px",border:"none",background:"transparent",color:T.textSidebarMuted,cursor:"pointer" }}><Globe size={17}/></button>
             <button data-icon-tooltip={`${t.country}: ${selectedCountry?.name || "—"}`} style={{ display:"flex",alignItems:"center",justifyContent:"center",width:"38px",height:"38px",borderRadius:"8px",border:"none",background:"transparent",color:T.textSidebarMuted,cursor:"default" }}><Landmark size={17}/></button>
             <div data-icon-tooltip={user?.name || user?.email || "User"} style={{ width:"32px",height:"32px",borderRadius:"50%",overflow:"hidden",background:"rgba(255,255,255,0.1)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:"0.75rem" }}>
@@ -2658,6 +2667,26 @@ const normalizeTradingPlan = (plan = {}, purchasePrice = 0) => {
     notes: plan?.notes || "",
     purchasePrice: Number(purchasePrice) || 0,
   };
+};
+const hasTransactionDateValue = (value) => String(value || "").trim().length > 0;
+const getTransactionActionAvailability = (tx) => {
+  const hasDepositedDate = hasTransactionDateValue(tx?.depositedAt || tx?.deposited_at);
+  const hasCollectedDate = hasTransactionDateValue(tx?.collectedAt || tx?.collected_at);
+  return {
+    hasDepositedDate,
+    hasCollectedDate,
+    canMarkDeposited: !hasDepositedDate && !hasCollectedDate,
+    canMarkCollected: !hasCollectedDate,
+    actionsComplete: hasCollectedDate,
+  };
+};
+const buildCollectedTransactionPatch = (tx, date) => {
+  const patch = { status:"Collected", collected_at:date, collectedAt:date };
+  if (!getTransactionActionAvailability(tx).hasDepositedDate) {
+    patch.deposited_at = date;
+    patch.depositedAt = date;
+  }
+  return patch;
 };
 const isCollectedTransaction = (tx) => {
   const status = String(tx?.status || "").toLowerCase();
@@ -5524,6 +5553,7 @@ function TransactionsTab({ modalPrefill, navigationFilter, onSmartBack, showSmar
   const markTransactionDeposited = (tx = editItem) => {
     const txId = tx?.id;
     if (!txId) return;
+    if (!getTransactionActionAvailability(tx).canMarkDeposited) return;
     const todayDate = new Date().toISOString().slice(0, 10);
     const patch = { status:"Deposited", deposited_at:todayDate, depositedAt:todayDate };
     patchItem("transactions", txId, patch);
@@ -5534,13 +5564,16 @@ function TransactionsTab({ modalPrefill, navigationFilter, onSmartBack, showSmar
   const markTransactionCollected = (tx = editItem) => {
     const txId = tx?.id;
     if (!txId) return;
+    if (!getTransactionActionAvailability(tx).canMarkCollected) return;
     const todayDate = new Date().toISOString().slice(0, 10);
-    const patch = { status:"Collected", collected_at:todayDate, collectedAt:todayDate };
+    const patch = buildCollectedTransactionPatch(tx, todayDate);
     patchItem("transactions", txId, patch);
     setEditItem((prev) => prev?.id === txId ? { ...prev, ...patch } : prev);
-    setForm((prev) => ({ ...prev, status:"Collected", collectedAt:todayDate }));
+    setForm((prev) => ({ ...prev, status:"Collected", depositedAt:patch.depositedAt ?? prev.depositedAt, collectedAt:todayDate }));
     setModalActionsOpen(false);
   };
+
+  const modalTransactionActions = getTransactionActionAvailability(editItem);
 
   return (
     <div dir={isRTL?"rtl":"ltr"} style={{ fontFamily:font }}>
@@ -5881,11 +5914,11 @@ function TransactionsTab({ modalPrefill, navigationFilter, onSmartBack, showSmar
           <div style={{ display:"flex",justifyContent:"flex-end",gap:"10px",marginTop:"8px" }}>
             {modalMode==="view" && (<>
               <div style={{ position:"relative" }}>
-                <Btn onClick={() => setModalActionsOpen((open) => !open)}>{t.actions || "Actions"}</Btn>
-                {modalActionsOpen && (
+                <Btn disabled={modalTransactionActions.actionsComplete} onClick={() => setModalActionsOpen((open) => !open)}>{t.actions || "Actions"}</Btn>
+                {modalActionsOpen && !modalTransactionActions.actionsComplete && (
                   <div style={{ position:"absolute", right:0, bottom:"calc(100% + 6px)", zIndex:13000, background:T.bgCard, border:`1px solid ${T.border}`, borderRadius:"10px", minWidth:"180px", boxShadow:"0 8px 28px rgba(0,0,0,0.15)", overflow:"hidden" }}>
-                    <button type="button" onClick={() => markTransactionDeposited(editItem)} onMouseEnter={(e)=>{e.currentTarget.style.background=T.bgApp;}} onMouseLeave={(e)=>{e.currentTarget.style.background="transparent";}} style={{ display:"block", width:"100%", padding:"9px 14px", background:"transparent", border:"none", color:T.info, fontSize:"0.78rem", fontWeight:600, cursor:"pointer", textAlign:isRTL?"right":"left" }}>{t.markDeposited || "Mark as Deposited"}</button>
-                    <button type="button" onClick={() => markTransactionCollected(editItem)} onMouseEnter={(e)=>{e.currentTarget.style.background=T.bgApp;}} onMouseLeave={(e)=>{e.currentTarget.style.background="transparent";}} style={{ display:"block", width:"100%", padding:"9px 14px", background:"transparent", border:"none", color:T.positive, fontSize:"0.78rem", fontWeight:600, cursor:"pointer", textAlign:isRTL?"right":"left" }}>{t.markCollected || "Mark as Collected"}</button>
+                    {modalTransactionActions.canMarkDeposited && <button type="button" onClick={() => markTransactionDeposited(editItem)} onMouseEnter={(e)=>{e.currentTarget.style.background=T.bgApp;}} onMouseLeave={(e)=>{e.currentTarget.style.background="transparent";}} style={{ display:"block", width:"100%", padding:"9px 14px", background:"transparent", border:"none", color:T.info, fontSize:"0.78rem", fontWeight:600, cursor:"pointer", textAlign:isRTL?"right":"left" }}>{t.markDeposited || "Mark as Deposited"}</button>}
+                    {modalTransactionActions.canMarkCollected && <button type="button" onClick={() => markTransactionCollected(editItem)} onMouseEnter={(e)=>{e.currentTarget.style.background=T.bgApp;}} onMouseLeave={(e)=>{e.currentTarget.style.background="transparent";}} style={{ display:"block", width:"100%", padding:"9px 14px", background:"transparent", border:"none", color:T.positive, fontSize:"0.78rem", fontWeight:600, cursor:"pointer", textAlign:isRTL?"right":"left" }}>{t.markCollected || "Mark as Collected"}</button>}
                   </div>
                 )}
               </div>
@@ -5953,13 +5986,14 @@ function TxActionMenu({ tx, onClose, anchorEl }) {
   const statuses = db?.settings?.transactionStatuses || ["recorded","scheduled","cancelled"];
   const queuedStatus = statuses.find(s=>String(s).toLowerCase().includes("schedule")) || statuses[1] || statuses[0];
   const normalizedStatus = String(tx?.status || "").trim().toLowerCase();
+  const transactionActions = getTransactionActionAvailability(tx);
   const todayDate = new Date().toISOString().slice(0, 10);
   const actions = [
     {
       label: t.markDeposited || "Mark as Deposited",
       icon: <Wallet size={13}/>,
       color: T.info,
-      show: normalizedStatus !== "deposited",
+      show: transactionActions.canMarkDeposited,
       action: () => {
         if (!txId) return onClose();
         patchItem("transactions", txId, { status:"Deposited", deposited_at:todayDate, depositedAt:todayDate });
@@ -5970,14 +6004,14 @@ function TxActionMenu({ tx, onClose, anchorEl }) {
       label: t.markCollected,
       icon: <CheckCircle2 size={13}/>,
       color: T.positive,
-      show: normalizedStatus !== "collected",
+      show: transactionActions.canMarkCollected,
       action: () => {
         if (!txId) return onClose();
-        patchItem("transactions", txId, { status:"Collected", collected_at:todayDate, collectedAt:todayDate });
+        patchItem("transactions", txId, buildCollectedTransactionPatch(tx, todayDate));
         onClose();
       },
     },
-    { label:t.markScheduled, icon:<RefreshCw size={13}/>, color:T.warning, show:normalizedStatus === "collected" || normalizedStatus === "deposited", action:()=>{ if (!txId) return onClose(); patchItem("transactions",txId,{status:queuedStatus}); onClose(); } },
+    { label:t.markScheduled, icon:<RefreshCw size={13}/>, color:T.warning, show:!transactionActions.actionsComplete && (normalizedStatus === "collected" || normalizedStatus === "deposited"), action:()=>{ if (!txId) return onClose(); patchItem("transactions",txId,{status:queuedStatus}); onClose(); } },
     { label:tx.is_hidden ? t.unarchive : t.archive, icon:tx.is_hidden ? <Eye size={13}/> : <EyeOff size={13}/>, color:T.warning, show:true, action:()=>{ if (!txId) return onClose(); tx.is_hidden ? unarchiveItem("transactions",txId) : archiveItem("transactions",txId); onClose(); } },
     { label:t.deleteItem, icon:<Trash2 size={13}/>, color:T.negative, show:true, action:()=>{ if (!txId) return onClose(); if(window.confirm(t.deleteCascadeWarning)) hardDeleteItem("transactions",txId); onClose(); } },
   ].filter(a=>a.show);

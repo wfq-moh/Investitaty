@@ -1505,32 +1505,20 @@ function AppProvider({ children }) {
   }, [auth.token, isBlocked, userSyncDone, fetchBackups]);
 
 
-  /*useEffect(() => {
+  useEffect(() => {
     if (!usersConfigReady) return;
     if (!auth.user || !auth.token) {
       setUserSyncDone(false);
       return;
-    }*/
-  useEffect(() => {
-  if (!usersConfigReady) return;
+    }
 
-  if (!auth.user || !auth.token) {
-    setUserSyncDone(false);
-    return;
-  }
-
-  if (DISABLE_SUPABASE) {
-    setUsersConfig(DEFAULT_USERS_CONFIG);
-    setGatekeeperError(null);
-    setUserSyncDone(true);
-
-    console.log("[Supabase] Disabled: using local config.");
-    return;
-  }
-
-  // Keep the existing Supabase Gatekeeper logic here
-  // when disableSupabase is false.
-}, [auth.user, auth.token, usersConfigReady]);
+    if (DISABLE_SUPABASE) {
+      setUsersConfig(DEFAULT_USERS_CONFIG);
+      setGatekeeperError(null);
+      setUserSyncDone(true);
+      console.log("[Supabase] Disabled: using local config.");
+      return;
+    }
 
     let isCancelled = false;
     const runGatekeeper = async () => {

@@ -42,6 +42,7 @@ const AUTH_DEBUG_PREFIX = "[AuthFlow]";
 const OWNER_PROTECTED_EMAIL = "wafique22@gmail.com";
 const ARCHIVED_FILTER = "__archived__";
 const RUNTIME_ENV = String(pkg?.environment || "").trim().toLowerCase();
+const DISABLE_SUPABASE = pkg.disableSupabase === true;
 
 const normalizeRole = (role) => {
   const value = String(role || "").trim().toLowerCase();
@@ -1406,6 +1407,10 @@ function AppProvider({ children }) {
   }, []);
 
   const fetchUsersConfig = useCallback(async ({ requireRemote = false } = {}) => {
+    if (DISABLE_SUPABASE) {
+  setUsersConfig(DEFAULT_USERS_CONFIG);
+  return DEFAULT_USERS_CONFIG;
+}
     if (!hasSupabaseClient) {
       const configError = new Error("Supabase client is not initialized.");
       console.log("[Supabase] fetchUsersConfig skipped:", configError.message);
@@ -1436,17 +1441,37 @@ function AppProvider({ children }) {
     }
   }, [buildUsersConfig]);
 
-  useEffect(() => {
+  /*useEffect(() => {
     fetchUsersConfig().finally(() => setUsersConfigReady(true));
-  }, [fetchUsersConfig]);
+  }, [fetchUsersConfig]);*/
 
   useEffect(() => {
+  if (DISABLE_SUPABASE) {
+    setUsersConfig(DEFAULT_USERS_CONFIG);
+    setUsersConfigReady(true);
+    return;
+  }
+
+  fetchUsersConfig().finally(() => setUsersConfigReady(true));
+}, [fetchUsersConfig]);
+
+  /*useEffect(() => {
     if (!usersConfigReady || !auth.user) return;
     const intervalId = setInterval(() => {
       fetchUsersConfig().catch(() => {});
     }, 10000);
     return () => clearInterval(intervalId);
-  }, [usersConfigReady, auth.user, fetchUsersConfig]);
+  }, [usersConfigReady, auth.user, fetchUsersConfig]);*/
+
+  useEffect(() => {
+  if (DISABLE_SUPABASE || !usersConfigReady || !auth.user) return;
+
+  const intervalId = setInterval(() => {
+    fetchUsersConfig().catch(() => {});
+  }, 10000);
+
+  return () => clearInterval(intervalId);
+}, [usersConfigReady, auth.user, fetchUsersConfig]);
 
   const currentEmail = String(auth?.user?.email || "").toLowerCase();
   const ownerEmail = String(usersConfig?.ownerEmail || OWNER_PROTECTED_EMAIL).toLowerCase();
@@ -1484,6 +1509,14 @@ function AppProvider({ children }) {
     if (!usersConfigReady) return;
     if (!auth.user || !auth.token) {
       setUserSyncDone(false);
+      return;
+    }
+
+    if (DISABLE_SUPABASE) {
+      setUsersConfig(DEFAULT_USERS_CONFIG);
+      setGatekeeperError(null);
+      setUserSyncDone(true);
+      console.log("[Supabase] Disabled: using local config.");
       return;
     }
 
@@ -1587,7 +1620,8 @@ function AppProvider({ children }) {
     let cancelled = false;
     const runSessionValidation = async () => {
       if (!auth.user?.id || !auth.token) return;
-      if (hasSupabaseClient && supabase?.auth?.getSession) {
+      //if (hasSupabaseClient && supabase?.auth?.getSession) {
+      if (!DISABLE_SUPABASE && hasSupabaseClient && supabase?.auth?.getSession) {
         const { data } = await supabase.auth.getSession().catch(() => ({ data: null }));
         const supabaseExpired = Boolean(data?.session?.expires_at && data.session.expires_at * 1000 <= Date.now());
         if (data?.session && supabaseExpired) {
@@ -1699,7 +1733,8 @@ function AppProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!hasSupabaseClient || !supabase?.auth?.onAuthStateChange) return;
+    //if (!hasSupabaseClient || !supabase?.auth?.onAuthStateChange) return;
+    if (DISABLE_SUPABASE || !hasSupabaseClient || !supabase?.auth?.onAuthStateChange) return;
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       const sessionExpired = Boolean(session?.expires_at && session.expires_at * 1000 <= Date.now());
       const shouldForceLogout = event === "SIGNED_OUT" || sessionExpired;
@@ -1866,10 +1901,10 @@ function AppProvider({ children }) {
   }, [updateDb, selectedCountryName]);
 
   const updateUserEntry = useCallback(async (email, updater) => {
-    if (!hasSupabaseClient) {
-      console.log("[Supabase] updateUserEntry skipped: Supabase client not initialized.");
-      return false;
-    }
+   if (DISABLE_SUPABASE || !hasSupabaseClient) {
+  console.log("[Supabase] updateUserEntry skipped User management disabled. or Supabase client not initialized.");
+  return false;
+}
 
     const normalized = String(email || "").toLowerCase();
     const users = [...(usersConfig?.users || [])];
@@ -1899,10 +1934,15 @@ function AppProvider({ children }) {
   }, [usersConfig, fetchUsersConfig]);
 
   const deleteUserEntry = useCallback(async (email) => {
-    if (!hasSupabaseClient) {
+    /*if (!hasSupabaseClient) {
       console.log("[Supabase] deleteUserEntry skipped: Supabase client not initialized.");
       return false;
-    }
+    }*/
+
+    if (DISABLE_SUPABASE || !hasSupabaseClient) {
+  console.log("[Supabase] deleteUserEntry skipped User management disabled. or Supabase client not initialized.");
+  return false;
+}
 
     const normalized = String(email || "").toLowerCase();
     try {

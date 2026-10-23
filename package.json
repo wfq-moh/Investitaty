@@ -17,5 +17,5 @@
     "preview": "vite preview"
   },
   "environment": "Production",
-  "disableSupabase": true
+  "disableSupabase": false
 }
